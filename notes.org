@@ -14,4 +14,9 @@
   - https://link.springer.com/article/10.1186/s41118-021-00123-9
   - https://www.econstor.eu/bitstream/10419/274564/1/1846965640.pdf
   - https://ihmeuw-demographics.github.io/demCore/articles/ccmpp.html
- 
+- We created a repo in github called SCCM_care_workforce.
+- We will focus in the methodologies used in this papers:
+  - https://www.econstor.eu/bitstream/10419/274564/1/1846965640.pdf
+  - https://link.springer.com/article/10.1007/s12062-019-09258-2#Sec2
+- Charlie suggestion: integrating data provided by Klara, Fixing the deterministic CMM code, Add some fnacy stochastic modelling.
+- Klara will check ELSA data.
