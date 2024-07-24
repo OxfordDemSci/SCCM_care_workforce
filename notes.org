@@ -1,0 +1,17 @@
+* TODO Notes meeting 09/07/2024
+- Good news: We have data on share on migrant working in health for the whole UK, based on annual population survey.
+- Bad news: Care needs, the questions in survey is daily activity that they cannot do in thier own, but only for 65+
+  - We will leave out for now the people younger that report long term conditions.
+- Lower bound for care is one hour per week UKHLS.
+- We have information about who is helping them. We could in second step get the share of informal share.
+- We have the share of migrants providing care (always informal or formal) and needing care.
+- Klara will send me the the input life table data.
+* TODO Notes meeting 24/07/2024
+- Literature found:
+  - https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0298190
+  - https://arxiv.org/pdf/2109.13015
+  - https://link.springer.com/article/10.1007/s12062-019-09258-2#Sec2
+  - https://link.springer.com/article/10.1186/s41118-021-00123-9
+  - https://www.econstor.eu/bitstream/10419/274564/1/1846965640.pdf
+  - https://ihmeuw-demographics.github.io/demCore/articles/ccmpp.html
+ 
