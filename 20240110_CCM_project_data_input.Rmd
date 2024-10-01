@@ -1,0 +1,259 @@
+---
+title: "CCM project"
+author: "Klara Raiber"
+date: "2024-07-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+# Three data sets: 1) Wave 13 of UK Household Longitudinal Study - Jan 2021 to May 2023; 2) UK Household Longitudinal Study wave overarching data needed for migration; 3) Annual Population Survey (APS) for information on people working in health sector also including migration (2022) by ONS
+
+```{r eval=FALSE}
+
+setwd("C:/Users/U679219/OneDrive - Radboud Universiteit/RU-Drive/Documents/Oxford 2024/prediction paper")
+
+#libraries
+library(haven)
+library(dplyr)
+library(readr)
+
+
+#read the Stata .dta file
+raw_wave13 <- haven::read_stata("m_indresp.dta") #wave 13 of UK Household Longitudinal Study - Jan 2021 to May 2023; respondents data
+
+table(raw_wave13$m_adla) # one example of ADL: Manage to walk stairs
+table(raw_wave13$m_dvage) #age in years
+table(raw_wave13$m_indinui_xw) # weights to be use
+
+#migration data
+raw_migration <- haven::read_stata("xwavedat.dta") # UK Household Longitudinal Study wave overarching data needed for migration data
+table(raw_migration$generation) # migration generation - we want to know who is not born in the UK
+
+#formal
+raw_formal  <- haven::read_stata("apsp_jd22_eul_pwta22.dta") # Annual Population Survey (APS) for information on people working in health sector also including migration (2022) by ONS https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/employmentandemployeetypes/methodologies/annualpopulationsurveyapsqmi
+
+```
+
+## health sector data
+# Main variables: age, SIC codes (N: Health & social work; makes sense because caregivers can be seen as social workers?), CRYOX7_EUL_Main (country of birth)
+```{r}
+#Import information/main variables form the Annual Population Survey:
+unique(raw_formal$AGE) # age in years 
+unique(raw_formal$IN0792SM) # SIC codes
+unique(raw_formal$CRYOX7_EUL_Main) # country of birth => not UK means migration
+table(raw_formal$COUNTRY) # Country within UK; we select England = 1 and Wales = 2
+
+#build life table with raw data
+variables_for_life_table_formal <- raw_formal %>% 
+  filter(COUNTRY == 1 | COUNTRY == 2) %>% # to select only England and Wales
+  select(AGE, CRYOX7_EUL_Main, IN0792SM) %>%  # SIC main job 
+    mutate(
+    age = case_when(AGE == -9 ~ NA, 
+                         AGE == -8 ~ NA,
+                    AGE < 16 ~ NA,
+                         TRUE ~ AGE), #rest same
+    age = as.numeric(age)
+  ) %>% 
+  mutate(
+    migrant =  case_when(CRYOX7_EUL_Main == 1  ~ 0,
+                        CRYOX7_EUL_Main != 1  ~ 1),
+    migrant = case_when(CRYOX7_EUL_Main == -8  ~ NA,
+                        TRUE ~ migrant),
+    migrant = as.numeric(migrant)) %>% 
+  mutate(
+    sic_health = case_when(IN0792SM ==  14 ~ 1,
+                         IN0792SM != 14 ~ 0), 
+    sic_health = case_when(IN0792SM == -9 ~ NA,
+                          IN0792SM == -8 ~ NA,
+                          TRUE ~ sic_health),
+    sic_health = as.numeric(sic_health)) %>% 
+    mutate(
+      migrant_in_health = if_else((migrant == 1 & sic_health == 1), 1, 0)
+    )
+
+
+variables_for_life_table_formal <- na.omit(variables_for_life_table_formal)
+
+#check
+table(variables_for_life_table_formal$age)
+table(variables_for_life_table_formal$migrant)
+table(variables_for_life_table_formal$sic_health)
+table(variables_for_life_table_formal$migrant_in_health)
+
+
+#combine them in one life table - probably there is a nicer way to do this - but it works:
+mytable <- table(variables_for_life_table_formal$age, variables_for_life_table_formal$migrant_in_health) # frequency table migration by age
+table_age_migration <- data.frame(mytable) # add frequencies to a data frame
+
+table_age_migration <- subset(table_age_migration, table_age_migration$Var2 == 1) # we are interested in migrants (1. so Var2)
+table_age_migration <-  subset(table_age_migration, select = -Var2) # excluded unneeded information
+#rename for clarity
+names(table_age_migration)[names(table_age_migration) == 'Var1'] <- 'age'
+names(table_age_migration)[names(table_age_migration) == 'Freq'] <- 'number of migrants'
+
+
+#same for SIC classification:
+
+mytable2 <- table(variables_for_life_table_formal$age, variables_for_life_table_formal$sic_health) # frequency table migration by SIC (health sector or not)
+table_age_sector <- data.frame(prop.table(mytable2, 1)) # add frequencies to a data frame
+table_age_sector <- subset(table_age_sector, table_age_sector$Var2 == 1) # we are interested in health workers (1. so Var2)
+table_age_sector <-  subset(table_age_sector, select = -Var2)  # excluded unneeded information
+#rename for clarity
+names(table_age_sector)[names(table_age_sector) == 'Var1'] <- 'age'
+names(table_age_sector)[names(table_age_sector) == 'Freq'] <- '% working in health'
+
+
+table_age_sector_absolut <- data.frame(mytable2) # add frequencies to a data frame
+table_age_sector_absolut <- subset(table_age_sector_absolut, table_age_sector_absolut$Var2 == 1) # we are interested in health workers (1. so Var2)
+table_age_sector_absolut <-  subset(table_age_sector_absolut, select = -Var2)  # excluded unneeded information
+#rename for clarity
+names(table_age_sector_absolut)[names(table_age_sector_absolut) == 'Var1'] <- 'age'
+names(table_age_sector_absolut)[names(table_age_sector_absolut) == 'Freq'] <- 'number of people working in health'
+
+
+#put them together in one life table:
+life_table_formal <- table_age_sector %>% 
+    inner_join(table_age_migration, by = "age")
+
+life_table_formal <- life_table_formal %>% 
+    inner_join(table_age_sector_absolut, by = "age")
+
+life_table_formal$share_migrants_in_health <- life_table_formal$`number of migrants` / life_table_formal$`number of people working in health`
+
+life_table_formal <-  subset(life_table_formal, select = -`number of migrants`) #get rid of unneeded information 
+life_table_formal <-  subset(life_table_formal, select = -`number of people working in health`) # get rid of unneeded information 
+
+
+
+```
+# Information from understanding society
+##Import information/main variables form the UKHLS (2023) for life tables: pidp (ID variable), m_aidhh (caregiving within household), m_aidxhh (caregiving outside household), to caculate age: m_istrtdaty & m_birthy, (I)ADLS: m_adla (manage stairs), m_adlb (get around house), m_adlc (get in/out bed), m_adld (cut toenails), m_adle (bath/shower), m_adlf (walk down the road), m_adlg (use toilet), m_adlh (eat including cutting food), m_adli (wash face and hands), m_adlj (dress/undress), m_adlk (take the right amount of medicine), m_adll (do shopping), m_adlm (do housework or laundry) & m_adln (doing paperwork or pay bills), individual 2022 cross-sectionals weights: m_indinui_xw, infromal help for care needs: m_hlpinfa96, formal help for care needs :m_hlpforma96
+#From not wave specific information UKHLS: migration generation: generation
+
+```{r}
+unique(raw_wave13$m_adla)
+       
+variables_for_life_table_informal_need <- raw_wave13 %>% 
+  filter(m_country == 1 | m_country == 2) %>% # to select only England and Wales
+  select(pidp, m_aidhh, m_aidxhh, m_istrtdaty, m_birthy, 
+         m_adla, m_adlb, m_adlc, m_adld, m_adle, m_adlf, 
+         m_adlg, m_adlh, m_adli, m_adlj, m_adlk, m_adll, 
+         m_adlm, m_adln, m_indinui_xw, m_hlpinfa96, m_hlpforma96) %>%  
+    mutate(
+    care_giving = if_else(m_aidhh == 1 | m_aidxhh == 1, 1, 0), #rest same
+    care_giving = as.numeric(care_giving),
+    care_giving_weighted = care_giving * m_indinui_xw
+  ) %>% 
+  mutate(
+    age = m_istrtdaty - m_birthy,
+    age = if_else(age > 101, NA, age)
+  ) %>% 
+  mutate(
+    care_need = if_else(m_adla == 2 | m_adlb == 2 | m_adlc == 2 | m_adld == 2 
+                        | m_adle == 2 | m_adlg == 2 | m_adlh == 2 | m_adli == 2 
+                        | m_adlj == 2 | m_adlk == 2 | m_adla == 3 | m_adlb == 3 |
+                          m_adlc == 3 | m_adld == 3 | m_adle == 3  | m_adlg == 3 
+                        | m_adlh == 3 | m_adli == 3 | m_adlj == 3 |
+                          m_adlk == 3 , 1, 0 ),
+    care_need_weighted = care_need * m_indinui_xw) %>% 
+  mutate(
+    informal_received = as.numeric(if_else(m_hlpinfa96 == 0 & care_need == 1, 1, 0)), # not asked for f (walking down road), l (do the shopping), m (housework), n (do paperwork or pay bills) => reduce our care need to this definition (conservative estimate)
+    informal_received_weighted = informal_received * m_indinui_xw
+  ) %>% 
+  mutate(
+    formal_received = as.numeric(if_else(m_hlpforma96 == 0 & care_need == 1, 1, 0)),
+    formal_received_weighted = formal_received * m_indinui_xw) %>%
+  mutate(
+    both_informal_formal_received = as.numeric(if_else(informal_received == 1 & formal_received == 1, 1, 0)),
+    both_informal_formal_received_weighted = both_informal_formal_received * m_indinui_xw) %>% 
+      select(pidp, care_giving, care_giving_weighted, age, care_need, care_need_weighted, 
+             informal_received, informal_received_weighted, formal_received, 
+             formal_received_weighted, both_informal_formal_received, 
+             both_informal_formal_received_weighted, m_indinui_xw)
+
+
+variables_for_life_table_informal_need_with_mig <- merge(variables_for_life_table_informal_need, raw_migration, by = 'pidp')  %>%  
+  select(pidp, care_giving, care_giving_weighted, age, care_need, care_need_weighted, 
+             informal_received, informal_received_weighted, formal_received, 
+             formal_received_weighted, both_informal_formal_received, 
+             both_informal_formal_received_weighted, m_indinui_xw, generation) %>% 
+  mutate(
+    migrant = as.numeric(if_else(generation == 1, 1, 0)),
+    migrant_weighted = migrant * m_indinui_xw
+  ) %>% 
+  mutate(
+    migrant_with_needs = as.numeric(if_else(migrant_weighted > 0 & care_need_weighted > 0, m_indinui_xw, 0)),
+    migrant_give_care = as.numeric(if_else(migrant_weighted > 0 & care_giving_weighted > 0, m_indinui_xw, 0))
+  )
+
+variables_for_life_table_informal_need_with_mig <- na.omit(variables_for_life_table_informal_need_with_mig)
+
+```
+
+#Put it in a life table 
+```{r}
+unique(variables_for_life_table_informal_need_with_mig$age) # 16 to 101
+
+#Empty data frame to fill
+df <- data.frame(matrix(ncol = 17, nrow = 86))
+x <- c('age', 'total_weight', 'need', 'share_need', 'care_giving', 'share_care_giving', 'migrant_need', 'total_migrant_weighted', 'share_need_mig', 'migrant_giving', 'share_informal_mig','sum_receiving_informal',  'share_with_care_needs_receiving_informal_care', 'sum_receiving_formal', 'share_with_care_needs_receiving_formal_care', 'sum_receiving_both', 'share_with_care_needs_receiving_both_care')
+colnames(df) <- x
+
+j <- 1
+
+for (i in 16:101) {
+   df <- df %>% 
+mutate(age = replace(age, j, i),
+     total_weight = replace(total_weight, j, (with(variables_for_life_table_informal_need_with_mig, sum(m_indinui_xw[age == i])))),
+   need = (replace(need, j, (with(variables_for_life_table_informal_need_with_mig, 
+                                  sum(care_need_weighted[age == i]))))),
+  share_need = need / total_weight,
+  care_giving = (replace(care_giving, j, (with(variables_for_life_table_informal_need_with_mig, 
+                                  sum(care_giving_weighted[age == i]))))),
+  share_care_giving = care_giving / total_weight,
+  total_migrant_weighted = (replace(total_migrant_weighted, j,
+                                    (with(variables_for_life_table_informal_need_with_mig, 
+                                  sum(migrant_weighted[age == i]))))),
+  migrant_need = (replace(migrant_need, j, (with(variables_for_life_table_informal_need_with_mig, 
+                                  sum(migrant_with_needs[age == i]))))),
+  share_need_mig = migrant_need / total_migrant_weighted,
+  migrant_giving = (replace(migrant_giving, j, (with(variables_for_life_table_informal_need_with_mig, 
+                                  sum(migrant_give_care[age == i]))))),
+  share_informal_mig = migrant_giving / total_migrant_weighted,
+  sum_receiving_informal = (replace(sum_receiving_informal, j,
+                                                        (with(variables_for_life_table_informal_need_with_mig,
+                                  sum(informal_received_weighted[age == i]))))),
+  share_with_care_needs_receiving_informal_care = sum_receiving_informal / need,
+  sum_receiving_formal = (replace(sum_receiving_formal, j,
+                                                        (with(variables_for_life_table_informal_need_with_mig,
+                                  sum(formal_received_weighted[age == i]))))),
+  share_with_care_needs_receiving_formal_care = sum_receiving_formal / need,
+  sum_receiving_both = (replace(sum_receiving_both, j,
+                                                        (with(variables_for_life_table_informal_need_with_mig,
+                                  sum(formal_received_weighted[age == i]))))),
+  share_with_care_needs_receiving_both_care = sum_receiving_both / need,
+   j = j + 1)
+   }
+
+life_table_part2 <- df %>%  select(age, share_need, share_care_giving, share_need_mig, share_informal_mig, share_with_care_needs_receiving_informal_care, share_with_care_needs_receiving_formal_care, share_with_care_needs_receiving_both_care)
+
+#make age an integer 
+life_table_formal$age <- as.integer(life_table_formal$age)
+
+#add both life tables together
+life_table_CCM_project <- life_table_part2 %>% 
+    merge(life_table_formal, by = "age", all = TRUE)
+
+#export to CSV
+readr::write_csv(life_table_CCM_project, 
+                 file = "life_table_CCM_project.csv")
+#export is as R file
+saveRDS(life_table_CCM_project, 
+        file = "life_table_CCM_project.rds")
+
+```
+
