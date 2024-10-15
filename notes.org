@@ -18,5 +18,14 @@
 - We will focus in the methodologies used in this papers:
   - https://www.econstor.eu/bitstream/10419/274564/1/1846965640.pdf
   - https://link.springer.com/article/10.1007/s12062-019-09258-2#Sec2
-- Charlie suggestion: integrating data provided by Klara, Fixing the deterministic CMM code, Add some fnacy stochastic modelling.
+- Charlie suggestion: integrating data provided by Klara, Fixing the deterministic CCM code, Add some fancy stochastic modelling.
 - Klara will check ELSA data.
+* TODO Notes Meeting 02/09/2024
+- Mortality rate
+- Fertility rate
+- Migration rate (from survey)
+- Prepare the format (.csv, 1 year interval or 5 year intervals)
+- Index should be age ranges (string, cat).
+- Klara already has the care needs life table and is in our mails.
+- Charlie to work in the Code.
+- Again I need to work into adding stochastic modelling to the code.
