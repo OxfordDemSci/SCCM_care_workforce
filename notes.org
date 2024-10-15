@@ -29,3 +29,7 @@
 - Klara already has the care needs life table and is in our mails.
 - Charlie to work in the Code.
 - Again I need to work into adding stochastic modelling to the code.
+* TODO Notes meeting 15/10/2024
+- Klara uploaded the necesary data and some plots.
+- Charlie will upload his sccm code in python.
+- I will controbute to the code in python.
